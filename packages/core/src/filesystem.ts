@@ -14,6 +14,7 @@ import { NonNegativeInt, PositiveInt, RelativePath } from "./schema"
 import { Protected } from "./filesystem/protected"
 import { Ripgrep } from "./filesystem/ripgrep"
 import { ToolOutputStore } from "./tool-output-store"
+import { bytesToText, chooseTextEncoding } from "./util/encode"
 
 export const ReadInput = Schema.Struct({
   path: Schema.String,
@@ -359,10 +360,8 @@ export const layer = Layer.effect(
       Effect.gen(function* () {
         const mime = FSUtil.mimeType(target.real)
         if (!bytes.includes(0)) {
-          const content = yield* Effect.sync(() => new TextDecoder("utf-8", { fatal: true }).decode(bytes)).pipe(
-            Effect.option,
-          )
-          if (content._tag === "Some") return new TextContent({ type: "text", content: content.value, mime })
+          const text = bytesToText(bytes)
+          return new TextContent({ type: "text", content: text, mime })
         }
         return new BinaryContent({
           type: "binary",
@@ -412,9 +411,10 @@ export const layer = Layer.effect(
           if (startsWith(first, [0x25, 0x50, 0x44, 0x46]) || isBinary(target.resource, first))
             return yield* Effect.die(new BinaryFileError(target.resource))
 
+          const decoder = new TextDecoder(chooseTextEncoding(first), { fatal: false })
+
           const paged = info.size > MAX_READ_BYTES || page.offset !== undefined || page.limit !== undefined
           if (!paged) {
-            const decoder = new TextDecoder("utf-8", { fatal: true })
             const text = [yield* Effect.sync(() => decoder.decode(first, { stream: true }))]
             while (true) {
               const chunk = yield* file.readAlloc(64 * 1024).pipe(Effect.orDie)
@@ -429,7 +429,6 @@ export const layer = Layer.effect(
           const offset = page.offset ?? 1
           const limit = Math.min(page.limit ?? MAX_READ_LINES, MAX_READ_LINES)
           const lines: string[] = []
-          const decoder = new TextDecoder("utf-8", { fatal: true })
           let pending = ""
           let discard = false
           let line = 1

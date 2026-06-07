@@ -159,6 +159,8 @@ export const layer = Layer.effect(
             "--json",
             "--glob=!.git/*", // TODO: Review .git exclusion policy before leaf tool exposure.
             "--no-messages",
+            "--encoding",
+            "auto",
             ...(input.include ? [`--glob=${input.include}`] : []),
             "--glob=!.*",
             "--glob=!**/.*",

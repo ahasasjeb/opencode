@@ -49,3 +49,30 @@ export function sampledChecksum(content: string, limit = 500_000): string | unde
     .join(":")
   return `${content.length}:${hashes}`
 }
+
+export function chooseTextEncoding(bytes: Uint8Array): string {
+  if (bytes.length === 0) return "utf-8"
+  const sample = bytes.length > 64 * 1024 ? bytes.subarray(0, 64 * 1024) : bytes
+  const candidates = ["utf-8", "gb18030", "gbk", "big5"] as const
+  let best: (typeof candidates)[number] = "utf-8"
+  let bestScore = Infinity
+  for (const enc of candidates) {
+    try {
+      const t = new TextDecoder(enc, { fatal: false }).decode(sample)
+      const bad = (t.match(/\uFFFD/g) || []).length
+      if (bad < bestScore) {
+        best = enc
+        bestScore = bad
+        if (bad === 0) break
+      }
+    } catch {
+      // unsupported in runtime
+    }
+  }
+  return best
+}
+
+export function bytesToText(bytes: Uint8Array): string {
+  if (bytes.length === 0) return ""
+  return new TextDecoder(chooseTextEncoding(bytes), { fatal: false }).decode(bytes)
+}

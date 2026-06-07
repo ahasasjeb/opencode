@@ -211,7 +211,7 @@ function filesArgs(input: FilesInput) {
 }
 
 function searchArgs(input: SearchInput) {
-  const args = ["--no-config", "--json", "--hidden", "--glob=!.git/*", "--no-messages"]
+  const args = ["--no-config", "--json", "--hidden", "--glob=!.git/*", "--no-messages", "--encoding", "auto"]
   if (input.follow) args.push("--follow")
   if (input.glob) {
     for (const glob of input.glob) args.push(`--glob=${glob}`)

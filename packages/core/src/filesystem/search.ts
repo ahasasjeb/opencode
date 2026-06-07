@@ -9,6 +9,7 @@ import { serviceUse } from "../effect/service-use"
 import { makeRuntime } from "../effect/runtime"
 import { Fff } from "#fff"
 import { Ripgrep } from "./ripgrep"
+import { bytesToText } from "../util/encode"
 
 const log = Log.create({ service: "file.search" })
 const root = path.join(Global.Path.cache, "fff")
@@ -113,18 +114,27 @@ function remember(state: State, dir: string, text: string, files: string[]) {
 }
 
 function item(hit: Fff.Hit): Item {
-  const line = Buffer.from(hit.lineContent)
+  let lineStr = hit.lineContent
+  let line = Buffer.from(hit.lineContent)
+  const bad = (lineStr.match(/\uFFFD/g) || []).length
+  if (bad > 0) {
+    // native may have delivered mojibake bytes-as-chars; recover raw bytes then best effort
+    const recovered = Buffer.from(hit.lineContent, "latin1")
+    lineStr = bytesToText(recovered)
+    line = recovered
+  }
   return {
     path: { text: normalize(hit.relativePath) },
-    lines: { text: hit.lineContent },
+    lines: { text: lineStr },
     line_number: hit.lineNumber,
     absolute_offset: hit.byteOffset,
     submatches: hit.matchRanges
       .map(([start, end]) => {
         const text = line.subarray(start, end).toString("utf8")
-        if (!text) return undefined
+        const good = bad > 0 ? bytesToText(line.subarray(start, end)) : text
+        if (!good) return undefined
         return {
-          match: { text },
+          match: { text: good },
           start,
           end,
         }
